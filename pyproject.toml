@@ -6,9 +6,7 @@ build-backend = "flit_core.buildapi"
 name = "pyretrosheet"
 version = "0.0.10"
 description = "Load, analyze, and enrich retrosheet.org MLB data."
-authors = [
-  { name = "Ryan Ozelie", email = "ryan.ozelie@gmail.com" },
-]
+authors = [{ name = "Ryan Ozelie", email = "ryan.ozelie@gmail.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 classifiers = [
@@ -17,23 +15,21 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.11"
-dependencies = [
-    "requests>=2.31.0,<3",
-]
+dependencies = ["requests"]
 
 [project.optional-dependencies]
 # up-to-date dependencies as of 11/28/2023
 dev = [
-  "pytest==7.4.3",
-  "black==23.11.0",
-  "isort==5.12.0",
-  "mypy==1.7.1",
-  "ruff==0.1.6",
-  "types-requests>=2.31.0,<3",
-  "requests-mock==1.11.0",
-  "pytest-mock==3.12.0",
-  "coverage==7.3.2",
-  "pytest-xdist==3.5.0",
+    "pytest",
+    "black",
+    "isort",
+    "mypy",
+    "ruff",
+    "types-requests",
+    "requests-mock",
+    "pytest-mock",
+    "coverage",
+    "pytest-xdist",
 ]
 
 [project.urls]
@@ -42,19 +38,19 @@ dev = [
 [tool.ruff]
 # Rules: https://docs.astral.sh/ruff/rules/
 select = [
-    "D", # pydocstyle
-    "I", # isort
-    "UP", # pyupgrade
-    "C4", # flake8-comprehensions
-    "ISC", # flake8-implicit-str-concat
-    "T20", # flake8-print
-    "PT", # flake8-pytest-style
-    "SIM", # flake8-simplify
-    "PTH", # flake8-use-pathlib
-    "ERA", # eradicate
-    "PL", # Pylint
-    "TRY", # tryceratops
-    "RUF", # Ruff-specific rules
+    "D",    # pydocstyle
+    "I",    # isort
+    "UP",   # pyupgrade
+    "C4",   # flake8-comprehensions
+    "ISC",  # flake8-implicit-str-concat
+    "T20",  # flake8-print
+    "PT",   # flake8-pytest-style
+    "SIM",  # flake8-simplify
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate
+    "PL",   # Pylint
+    "TRY",  # tryceratops
+    "RUF",  # Ruff-specific rules
     "F401", # unused-import
 ]
 ignore = [
