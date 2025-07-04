@@ -27,24 +27,17 @@ class Event:
                 Examples include: '8/F78', '9/SF.3-H', 'S9/L9S.2-H;1-3'
         """
         event_trimmed = trim_ignored_characters(event)
-        # need to handle this case specifically as to not make the rest of the logic more complex
-        # this is the only known case of multiple '.' in a play - likely an encoding error
-        if event_trimmed == "FC3/DP/G3S.3XH(32);1X2(8).B-1":
-            description_and_modifiers = "FC3/DP/G3S"
-            advances = ["3XH(32)", "1X2(8)", "B-1"]
-        elif "." in event_trimmed:
-            description_and_modifiers, advances_raw = event_trimmed.split(".")
-            advances = advances_raw.split(";")
-        else:
-            description_and_modifiers = event_trimmed
-            advances = []
 
-        # there are cases of double slashes which I do not believe adds any extra info - remove them
-        description_and_modifiers = description_and_modifiers.replace("//", "/")
+        event_splits = event_trimmed.split(".")
+        description_and_modifiers = event_splits[0]
+        advances = []
 
-        # remove trailing slashes - does not encode anything
-        if description_and_modifiers.endswith("/"):
-            description_and_modifiers = description_and_modifiers[:-1]
+        # # there are cases of double slashes which I do not believe adds any extra info - remove them
+        # description_and_modifiers = description_and_modifiers.replace("//", "/")
+
+        # # remove trailing slashes - does not encode anything
+        # if description_and_modifiers.endswith("/"):
+        #     description_and_modifiers = description_and_modifiers[:-1]
 
         # I shamelessly used ChatGPT for this pattern since it's difficult to separate the description and modifiers
         # consistently.

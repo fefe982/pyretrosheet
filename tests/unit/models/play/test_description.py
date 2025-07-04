@@ -8,13 +8,13 @@ from pyretrosheet.models.play.description import BatterEvent, RunnerEvent
 @pytest.mark.parametrize(
     ["raw_description", "expected_batter_event"],
     [
-        ("1", BatterEvent.UNASSISTED_FIELDED_OUT),
-        ("123", BatterEvent.ASSISTED_FIELDED_OUT),
-        ("123(B)", BatterEvent.ASSISTED_FIELDED_OUT),
-        ("45(1)3", BatterEvent.GROUNDED_INTO_DOUBLE_PLAY),
-        ("45(1)3(2)6", BatterEvent.GROUNDED_INTO_TRIPLE_PLAY),
-        ("45(B)3(2)", BatterEvent.LINED_INTO_DOUBLE_PLAY),
-        ("45(B)3(2)6(3)", BatterEvent.LINED_INTO_TRIPLE_PLAY),
+        ("1", BatterEvent.OUT),
+        ("123", BatterEvent.OUT),
+        ("123(B)", BatterEvent.OUT),
+        ("45(1)3", BatterEvent.DOUBLE_PLAY),
+        ("45(1)3(2)6", BatterEvent.TRIPLE_PLAY),
+        ("45(B)3(2)", BatterEvent.DOUBLE_PLAY),
+        ("45(B)3(2)6(3)", BatterEvent.TRIPLE_PLAY),
         ("H", BatterEvent.HOME_RUN_LEAVING_PARK),
         ("HR", BatterEvent.HOME_RUN_LEAVING_PARK),
         ("H1", BatterEvent.HOME_RUN_INSIDE_PARK),
@@ -64,13 +64,13 @@ def test__get_runner_event(raw_description, expected_runner_event):
 @pytest.mark.parametrize(
     ["raw_description", "batter_event", "runner_event", "expected_fielding_out_plays"],
     [
-        ("1", BatterEvent.UNASSISTED_FIELDED_OUT, None, ["1"]),
-        ("123", BatterEvent.ASSISTED_FIELDED_OUT, None, ["123"]),
-        ("123(B)", BatterEvent.ASSISTED_FIELDED_OUT, None, ["123"]),
-        ("1(1)23", BatterEvent.GROUNDED_INTO_DOUBLE_PLAY, None, ["1", "23"]),
-        ("1(1)23(2)4", BatterEvent.GROUNDED_INTO_TRIPLE_PLAY, None, ["1", "23", "4"]),
-        ("1(B)23(1)", BatterEvent.LINED_INTO_DOUBLE_PLAY, None, ["1", "23"]),
-        ("1(B)23(1)4(2)", BatterEvent.LINED_INTO_TRIPLE_PLAY, None, ["1", "23", "4"]),
+        ("1", BatterEvent.OUT, None, ["1"]),
+        ("123", BatterEvent.OUT, None, ["123"]),
+        ("123(B)", BatterEvent.OUT, None, ["123"]),
+        ("1(1)23", BatterEvent.DOUBLE_PLAY, None, ["1", "23"]),
+        ("1(1)23(2)4", BatterEvent.TRIPLE_PLAY, None, ["1", "23", "4"]),
+        ("1(B)23(1)", BatterEvent.DOUBLE_PLAY, None, ["1", "23"]),
+        ("1(B)23(1)4(2)", BatterEvent.TRIPLE_PLAY, None, ["1", "23", "4"]),
         ("CS2(E2)", None, RunnerEvent.CAUGHT_STEALING, []),
         ("CS2(12)", None, RunnerEvent.CAUGHT_STEALING, ["12"]),
         ("CS2(26!)", None, RunnerEvent.CAUGHT_STEALING, ["26"]),
@@ -157,8 +157,8 @@ def test__get_fielder_errors(raw_description, batter_event, runner_event, expect
 @pytest.mark.parametrize(
     ["raw_description", "batter_event", "expected_put_out_at_base"],
     [
-        ("123", BatterEvent.UNASSISTED_FIELDED_OUT, None),
-        ("123(B)", BatterEvent.ASSISTED_FIELDED_OUT, Base.BATTER_AT_HOME),
+        ("123", BatterEvent.OUT, None),
+        ("123(B)", BatterEvent.OUT, Base.BATTER_AT_HOME),
     ],
 )
 def test__get_put_out_at_base(raw_description, batter_event, expected_put_out_at_base):

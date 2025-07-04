@@ -67,7 +67,7 @@ class ModifierType(Enum):
     APPEAL_PLAY = auto()
     POP_UP_BUNT = auto()
     GROUND_BALL_BUNT = auto()
-    BUNT_GROUNDED_INTO_DOUBLE_PLAY = auto()
+    BUNT_DOUBLE_PLAY = auto()
     BATTER_INTERFERENCE = auto()
     LINE_DRIVE_BUNT = auto()
     BATTING_OUT_OF_TURN = auto()
@@ -92,8 +92,8 @@ class ModifierType(Enum):
     INTERFERENCE = auto()
     INSIDE_THE_PARK_HOME_RUN = auto()
     LINE_DRIVE = auto()
-    LINED_INTO_DOUBLE_PLAY = auto()
-    LINED_INTO_TRIPLE_PLAY = auto()
+    DOUBLE_PLAY = auto()
+    TRIPLE_PLAY = auto()
     MANAGER_CHALLENGE_OF_CALL_ON_THE_FIELD = auto()
     NO_DOUBLE_PLAY_CREDITED_FOR_THIS_PLAY = auto()
     OBSTRUCTION = auto()
@@ -177,7 +177,7 @@ def _get_modifier_type(modifier: str) -> ModifierType:
         r"AP(\d+.*)?": ModifierType.APPEAL_PLAY,
         r"BP(\d+.*)?": ModifierType.POP_UP_BUNT,
         r"BG(\d+.*)?": ModifierType.GROUND_BALL_BUNT,
-        r"BGDP(\d+.*)?": ModifierType.BUNT_GROUNDED_INTO_DOUBLE_PLAY,
+        r"BGDP(\d+.*)?": ModifierType.BUNT_DOUBLE_PLAY,
         r"BINT(\d+.*)?": ModifierType.BATTER_INTERFERENCE,
         r"BL(\d+.*)?": ModifierType.LINE_DRIVE_BUNT,
         r"BOOT(\d+.*)?": ModifierType.BATTING_OUT_OF_TURN,
@@ -201,8 +201,8 @@ def _get_modifier_type(modifier: str) -> ModifierType:
         r"INT(\d+.*)?": ModifierType.INTERFERENCE,
         r"IPHR(\d+.*)?": ModifierType.INSIDE_THE_PARK_HOME_RUN,
         r"L(\d+.*)?": ModifierType.LINE_DRIVE,
-        r"LDP(\d+.*)?": ModifierType.LINED_INTO_DOUBLE_PLAY,
-        r"LTP(\d+.*)?": ModifierType.LINED_INTO_TRIPLE_PLAY,
+        r"LDP(\d+.*)?": ModifierType.DOUBLE_PLAY,
+        r"LTP(\d+.*)?": ModifierType.TRIPLE_PLAY,
         r"MREV(\d+.*)?": ModifierType.MANAGER_CHALLENGE_OF_CALL_ON_THE_FIELD,
         r"NDP(\d+.*)?": ModifierType.NO_DOUBLE_PLAY_CREDITED_FOR_THIS_PLAY,
         r"OBS(\d+.*)?": ModifierType.OBSTRUCTION,

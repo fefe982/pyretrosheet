@@ -1,4 +1,5 @@
 """Encapsulates Retrosheet play basic description as part of play data."""
+
 import re
 from collections import defaultdict
 from dataclasses import dataclass
@@ -7,15 +8,10 @@ from enum import Enum, auto
 from pyretrosheet.models.base import Base
 
 
-class BatterEvent(Enum):
-    """Represents a batter event as part of a play's basic description."""
-
-    UNASSISTED_FIELDED_OUT = auto()
-    ASSISTED_FIELDED_OUT = auto()
-    GROUNDED_INTO_DOUBLE_PLAY = auto()
-    LINED_INTO_DOUBLE_PLAY = auto()
-    GROUNDED_INTO_TRIPLE_PLAY = auto()
-    LINED_INTO_TRIPLE_PLAY = auto()
+class EventType(Enum):
+    OUT = auto()
+    DOUBLE_PLAY = auto()
+    TRIPLE_PLAY = auto()
     CATCHER_INTERFERENCE = auto()
     SINGLE = auto()
     DOUBLE = auto()
@@ -31,11 +27,6 @@ class BatterEvent(Enum):
     NO_PLAY = auto()
     INTENTIONAL_WALK = auto()
     WALK = auto()
-
-
-class RunnerEvent(Enum):
-    """Represents a runner event as part of a play's basic description."""
-
     BALK = auto()
     CAUGHT_STEALING = auto()
     DEFENSIVE_INDIFFERENCE = auto()
@@ -45,6 +36,7 @@ class RunnerEvent(Enum):
     PICKED_OFF = auto()
     PICKED_OFF_CAUGHT_STEALING = auto()
     STOLEN_BASE = auto()
+    FILEDERS_CHOICE = auto()
 
 
 @dataclass
@@ -65,14 +57,14 @@ class Description:
         raw: the raw play description
     """
 
-    batter_event: BatterEvent | None
-    runner_event: RunnerEvent | None
+    events: list[EventType]
     fielder_assists: dict[int, int]
     fielder_put_outs: dict[int, int]
     fielder_handlers: dict[int, int]
     fielder_errors: dict[int, int]
     put_out_at_base: Base | None
     stolen_base: Base | None
+    implied_advance: list[Base]
     raw: str
 
     @classmethod
@@ -82,97 +74,67 @@ class Description:
         Args:
             description: the description part of a play's event
         """
-        batter_event = _get_batter_event(description)
-        runner_event = _get_runner_event(description)
-        fielding_out_plays = _get_fielding_out_plays(description, batter_event, runner_event)
-        fielding_handler_plays = _get_fielding_handler_plays(description, batter_event, runner_event)
+        events = _get_event_type(description)
+        fielding_out_plays = _get_fielding_out_plays(description, events)
+        fielding_handler_plays = _get_fielding_handler_plays(description, events)
         return cls(
-            batter_event=batter_event,
-            runner_event=runner_event,
+            events=[_[0] for _ in events],
             fielder_assists=_get_fielder_assists(fielding_out_plays),
             fielder_put_outs=_get_fielder_put_outs(fielding_out_plays),
             fielder_handlers=_get_fielder_handlers(fielding_handler_plays),
-            fielder_errors=_get_fielder_errors(description, batter_event, runner_event),
-            put_out_at_base=_get_put_out_at_base(description, batter_event),
-            stolen_base=_get_stolen_base(description, runner_event),
+            fielder_errors=_get_fielder_errors(description, events),
+            put_out_at_base=_get_put_out_at_base(description, events),
+            stolen_base=_get_stolen_base(description, events),
             raw=description,
+            implied_advance=[],
         )
 
 
-def _get_batter_event(description: str) -> BatterEvent | None:
-    """Get the batter event from the description.
-
-    The batter event is encoded at the start of the description, if there is one.
-
-    Args:
-        description: the description part of a play's event
-    """
+def _get_event_type(description: str) -> list[tuple[EventType, re.Match]]:
     pattern_to_batter_event = {
-        r"\d": BatterEvent.UNASSISTED_FIELDED_OUT,
-        r"\d{2,}(\(.\))?": BatterEvent.ASSISTED_FIELDED_OUT,
-        r"\d+\([123H]\)\d": BatterEvent.GROUNDED_INTO_DOUBLE_PLAY,
-        r"\d+\([123H]\)\d\([123H]\)\d": BatterEvent.GROUNDED_INTO_TRIPLE_PLAY,
-        r"\d+\(B\)\d+\(.\)": BatterEvent.LINED_INTO_DOUBLE_PLAY,
-        r"\d+\(B\)\d+\(.\)\d+\(.\)": BatterEvent.LINED_INTO_TRIPLE_PLAY,
-        r"H(R)?": BatterEvent.HOME_RUN_LEAVING_PARK,
-        r"H(R)?\d": BatterEvent.HOME_RUN_INSIDE_PARK,
+        r"(?P<a0>\d+)?(?P<p0>\d)(\((?P<b0>.)\))?": EventType.OUT,
+        r"(?P<a0>\d+)?(?P<p0>\d)\((?P<b0>.)\)(?P<a1>\d+)?(?P<p1>\d)(\((?P<b1>.)\))?": EventType.DOUBLE_PLAY,
+        r"(?P<a0>\d+)?(?P<p0>\d)\((?P<b0>.)\)(?P<a1>\d+)?(?P<p1>\d)\((?P<b1>.)\)(?P<a2>\d+)?(?P<p2>\d)(\((?P<b2>.)\))?": EventType.TRIPLE_PLAY,
+        r"H(R)?": EventType.HOME_RUN_LEAVING_PARK,
+        r"H(R)?\d": EventType.HOME_RUN_INSIDE_PARK,
         # S, D, and T optionally include the fielder info
-        r"S(\d+)?": BatterEvent.SINGLE,
-        r"D(\d+)?": BatterEvent.DOUBLE,
-        r"T(\d+)?": BatterEvent.TRIPLE,
-        r"(\d)?E\d": BatterEvent.ERROR,
-        r"FLE\d": BatterEvent.ERROR_ON_FOUL_FLY_BALL,
-        r"FC\d": BatterEvent.FIELDERS_CHOICE,
-        r"C": BatterEvent.CATCHER_INTERFERENCE,
-        r"HP": BatterEvent.HIT_BY_PITCH,
-        r"DGR": BatterEvent.GROUND_RULE_DOUBLE,
-        r"K": BatterEvent.STRIKEOUT,
-        r"W": BatterEvent.WALK,
-        r"I(W)?": BatterEvent.INTENTIONAL_WALK,
-        r"NP": BatterEvent.NO_PLAY,
+        r"S(\d+)?": EventType.SINGLE,
+        r"D(\d+)?": EventType.DOUBLE,
+        r"T(\d+)?": EventType.TRIPLE,
+        r"\d*E\d": EventType.ERROR,
+        r"FLE\d": EventType.ERROR_ON_FOUL_FLY_BALL,
+        r"FC\d": EventType.FIELDERS_CHOICE,
+        r"C": EventType.CATCHER_INTERFERENCE,
+        r"HP": EventType.HIT_BY_PITCH,
+        r"DGR": EventType.GROUND_RULE_DOUBLE,
+        r"K": EventType.STRIKEOUT,
+        r"W": EventType.WALK,
+        r"I(W)?": EventType.INTENTIONAL_WALK,
+        r"NP": EventType.NO_PLAY,
+        r"BK": EventType.BALK,
+        r"CS[23H]\(.*\)": EventType.CAUGHT_STEALING,
+        r"DI": EventType.DEFENSIVE_INDIFFERENCE,
+        r"OA": EventType.OTHER_ADVANCE,
+        r"PB": EventType.PASSED_BALL,
+        r"WP": EventType.WILD_PITCH,
+        r"PO[123H]\(.*\)": EventType.PICKED_OFF,
+        r"POCS[123H]\(.*\)": EventType.PICKED_OFF_CAUGHT_STEALING,
+        r"SB[23H]": EventType.STOLEN_BASE,
+        r"FC": EventType.FILEDERS_CHOICE,
     }
-    for pattern, batter_event in pattern_to_batter_event.items():
-        if re.fullmatch(pattern, description):
-            return batter_event
-
-    return None
-
-
-def _get_runner_event(description: str) -> RunnerEvent | None:
-    """Get the runner event from the description.
-
-    The runner event is encoded at the start of the description or after a '+' following a
-    batter event, if there is one.
-
-    Args:
-        description: the description part of a play's event
-    """
-    # Certain batting events are followed by a '+' and a runner event
-    # We remove the batting event and '+' in these cases to ease parsing
-    if match := re.fullmatch(r"(K|W|IW)\+(.*)", description):
-        description = match.group(2)
-
-    pattern_to_runner_event = {
-        r"BK": RunnerEvent.BALK,
-        r"CS[23H]\(.*\)": RunnerEvent.CAUGHT_STEALING,
-        r"DI": RunnerEvent.DEFENSIVE_INDIFFERENCE,
-        r"OA": RunnerEvent.OTHER_ADVANCE,
-        r"PB": RunnerEvent.PASSED_BALL,
-        r"WP": RunnerEvent.WILD_PITCH,
-        r"PO[123H]\(.*\)": RunnerEvent.PICKED_OFF,
-        r"POCS[123H]\(.*\)": RunnerEvent.PICKED_OFF_CAUGHT_STEALING,
-        r"SB[23H]": RunnerEvent.STOLEN_BASE,
-    }
-    for pattern, runner_event in pattern_to_runner_event.items():
-        if re.fullmatch(pattern, description):
-            return runner_event
-
-    return None
+    descriptions = re.split(r"[+;]", description)
+    events = []
+    for desc in descriptions:
+        for pattern, batter_event in pattern_to_batter_event.items():
+            if match := re.fullmatch(pattern, desc):
+                events.append((batter_event, match))
+                break
+        else:
+            assert False, f"Could not determine event type for description: {desc} in event: {description}"
+    return events
 
 
-def _get_fielding_out_plays(
-    description: str, batter_event: BatterEvent | None, runner_event: RunnerEvent | None
-) -> list[str]:
+def _get_fielding_out_plays(description: str, events: list[tuple[EventType, re.Match]]) -> list[str]:
     """Get the fielding plays resulting in outs.
 
     Plays in this context is a string that contains the fielding positions of the fielders involved in the out.
@@ -183,34 +145,26 @@ def _get_fielding_out_plays(
         runner_event: the runner event, if it exists
     """
     fielding_out_plays: list[str] = []
-    match batter_event:
-        case BatterEvent.UNASSISTED_FIELDED_OUT:
-            fielding_out_plays.append(re.fullmatch(r"(\d)", description).group(1))  # type: ignore
+    for event_type, m in events:
+        match event_type:
+            case EventType.OUT | EventType.DOUBLE_PLAY | EventType.TRIPLE_PLAY:
+                for i in range(3):
+                    try:
+                        p = m.group(f"a{i}")
+                        if p is None:
+                            p = ""
+                    except IndexError:
+                        p = ""
+                    try:
+                        p += m.group(f"p{i}")
+                    except IndexError:
+                        break
+                    fielding_out_plays.append(p)
 
-        case BatterEvent.ASSISTED_FIELDED_OUT:
-            fielding_out_plays.append(re.fullmatch(r"(\d+).*", description).group(1))  # type: ignore
-
-        case BatterEvent.GROUNDED_INTO_DOUBLE_PLAY:
-            match = re.fullmatch(r"(\d+)\(.\)(\d+)", description)
-            fielding_out_plays.extend(match.group(g) for g in [1, 2])  # type: ignore
-
-        case BatterEvent.GROUNDED_INTO_TRIPLE_PLAY:
-            match = re.fullmatch(r"(\d+)\(.\)(\d+)\(.\)(\d+)", description)
-            fielding_out_plays.extend(match.group(g) for g in [1, 2, 3])  # type: ignore
-
-        case BatterEvent.LINED_INTO_DOUBLE_PLAY:
-            match = re.fullmatch(r"(\d+)\(.\)(\d+)\(.\)", description)
-            fielding_out_plays.extend(match.group(g) for g in [1, 2])  # type: ignore
-
-        case BatterEvent.LINED_INTO_TRIPLE_PLAY:
-            match = re.fullmatch(r"(\d+)\(.\)(\d+)\(.\)(\d+)\(.\)", description)
-            fielding_out_plays.extend(match.group(g) for g in [1, 2, 3])  # type: ignore
-
-    match runner_event:
-        case RunnerEvent.CAUGHT_STEALING | RunnerEvent.PICKED_OFF | RunnerEvent.PICKED_OFF_CAUGHT_STEALING:
-            # errors, 'E', does not result in an out so we skip these runner events
-            if not re.fullmatch(r".*\(.*E.*\)", description):
-                fielding_out_plays.append(re.fullmatch(r".*\((.*)\)", description).group(1))  # type: ignore
+            case EventType.CAUGHT_STEALING | EventType.PICKED_OFF | EventType.PICKED_OFF_CAUGHT_STEALING:
+                # errors, 'E', does not result in an out so we skip these runner events
+                if not re.fullmatch(r".*\(.*E.*\)", description):
+                    fielding_out_plays.append(re.fullmatch(r".*\((.*)\)", description).group(1))  # type: ignore
 
     corrected_fielding_out_plays = []
     for play in fielding_out_plays:
@@ -223,9 +177,7 @@ def _get_fielding_out_plays(
     return corrected_fielding_out_plays
 
 
-def _get_fielding_handler_plays(
-    description: str, batter_event: BatterEvent | None, runner_event: RunnerEvent | None
-) -> list[str]:
+def _get_fielding_handler_plays(description: str, events: list[tuple[EventType, re.Match]]) -> list[str]:
     """Get fielding handler plays (plays that did not result in error or outs).
 
     Plays in this context is a string that contains the fielding positions of the fielders involved in the handling
@@ -237,30 +189,35 @@ def _get_fielding_handler_plays(
         runner_event: the runner event, if it exists
     """
     fielding_handler_plays: list[str] = []
-    match batter_event:
-        case BatterEvent.SINGLE | BatterEvent.DOUBLE | BatterEvent.TRIPLE | BatterEvent.FIELDERS_CHOICE | BatterEvent.HOME_RUN_INSIDE_PARK:
-            # will not match in the case of fielder info not being present, e.g. description = "S"
-            if match := re.fullmatch(r"(S|D|T|FC|H|HR)(\d+)", description):
-                fielding_handler_plays.append(match.group(2))
+    for event_type, m in events:
+        match event_type:
+            case (
+                EventType.SINGLE
+                | EventType.DOUBLE
+                | EventType.TRIPLE
+                | EventType.FIELDERS_CHOICE
+                | EventType.HOME_RUN_INSIDE_PARK
+            ):
+                # will not match in the case of fielder info not being present, e.g. description = "S"
+                if match := re.fullmatch(r"(S|D|T|FC|H|HR)(\d+)", description):
+                    fielding_handler_plays.append(match.group(2))
+            case EventType.CAUGHT_STEALING | EventType.PICKED_OFF | EventType.PICKED_OFF_CAUGHT_STEALING:
+                match = re.fullmatch(r".*\((.*)\)", description)
+                fielder_positions = match.group(1)  # type: ignore
+                fielder_positions_not_part_of_an_error = []
+                parts = fielder_positions.split("/")
+                for part in parts:
+                    has_error = False
+                    for i, fielder_position in enumerate(part):
+                        if fielder_position == "E" or part[i - 1] == "E":
+                            has_error = True
+                            continue
 
-    match runner_event:
-        case RunnerEvent.CAUGHT_STEALING | RunnerEvent.PICKED_OFF | RunnerEvent.PICKED_OFF_CAUGHT_STEALING:
-            match = re.fullmatch(r".*\((.*)\)", description)
-            fielder_positions = match.group(1)  # type: ignore
-            fielder_positions_not_part_of_an_error = []
-            parts = fielder_positions.split("/")
-            for part in parts:
-                has_error = False
-                for i, fielder_position in enumerate(part):
-                    if fielder_position == "E" or part[i - 1] == "E":
-                        has_error = True
-                        continue
+                        fielder_positions_not_part_of_an_error.append(fielder_position)
 
-                    fielder_positions_not_part_of_an_error.append(fielder_position)
-
-                # no outs would occur if there is an error
-                if fielder_positions_not_part_of_an_error and has_error:
-                    fielding_handler_plays.append("".join(fielder_positions_not_part_of_an_error))
+                    # no outs would occur if there is an error
+                    if fielder_positions_not_part_of_an_error and has_error:
+                        fielding_handler_plays.append("".join(fielder_positions_not_part_of_an_error))
 
     return fielding_handler_plays
 
@@ -310,9 +267,7 @@ def _get_fielder_handlers(fielding_handler_plays: list[str]) -> dict[int, int]:
     return dict(fielder_handlers)
 
 
-def _get_fielder_errors(
-    description: str, batter_event: BatterEvent | None, runner_event: RunnerEvent | None
-) -> dict[int, int]:
+def _get_fielder_errors(description: str, events: list[tuple[EventType, re.Match]]) -> dict[int, int]:
     """Get a map of fielder positions and the number of errors they made on the play.
 
     Args:
@@ -321,50 +276,51 @@ def _get_fielder_errors(
         runner_event: the runner event, if it exists
     """
     fielder_errors: defaultdict[int, int] = defaultdict(int)
-    match batter_event:
-        case BatterEvent.ERROR:
-            if match := re.fullmatch(r"E(\d+)", description):
-                for fielder_position in match.group(1):
+    for event_type, _ in events:
+        match event_type:
+            case EventType.ERROR:
+                if match := re.fullmatch(r"E(\d+)", description):
+                    for fielder_position in match.group(1):
+                        fielder_errors[int(fielder_position)] += 1
+
+                if match := re.fullmatch(r"\dE(\d+)", description):
+                    for fielder_position in match.group(1):
+                        fielder_errors[int(fielder_position)] += 1
+
+            case EventType.ERROR_ON_FOUL_FLY_BALL:
+                match = re.fullmatch(r"FLE(\d+)", description)
+                for fielder_position in match.group(1):  # type: ignore
                     fielder_errors[int(fielder_position)] += 1
 
-            if match := re.fullmatch(r"\dE(\d+)", description):
-                for fielder_position in match.group(1):
-                    fielder_errors[int(fielder_position)] += 1
-
-        case BatterEvent.ERROR_ON_FOUL_FLY_BALL:
-            match = re.fullmatch(r"FLE(\d+)", description)
-            for fielder_position in match.group(1):  # type: ignore
-                fielder_errors[int(fielder_position)] += 1
-
-    match runner_event:
-        case RunnerEvent.CAUGHT_STEALING | RunnerEvent.PICKED_OFF | RunnerEvent.PICKED_OFF_CAUGHT_STEALING:
-            if match := re.fullmatch(r".*\((.*E.*)\)", description):
-                fielder_positions = match.group(1)
-                for i, fielder_position in enumerate(fielder_positions):
-                    if fielder_position == "E":
-                        # the fielder position following the 'E' is the player that made the error
-                        fielder_errors[int(fielder_positions[i + 1])] += 1
+            case EventType.CAUGHT_STEALING | EventType.PICKED_OFF | EventType.PICKED_OFF_CAUGHT_STEALING:
+                if match := re.fullmatch(r".*\((.*E.*)\)", description):
+                    fielder_positions = match.group(1)
+                    for i, fielder_position in enumerate(fielder_positions):
+                        if fielder_position == "E":
+                            # the fielder position following the 'E' is the player that made the error
+                            fielder_errors[int(fielder_positions[i + 1])] += 1
 
     return dict(fielder_errors)
 
 
-def _get_put_out_at_base(description: str, batter_event: BatterEvent | None) -> Base | None:
+def _get_put_out_at_base(description: str, events: list[tuple[EventType, re.Match]]) -> Base | None:
     """Get the base of a put out if it's a non-conventional base put out at.
 
     Args:
         description: the description part of a play's event
         batter_event: the batting event, if it exists
     """
-    if batter_event == BatterEvent.ASSISTED_FIELDED_OUT:
-        match = re.fullmatch(r"\d+\((.)\)", description)
-        if match:
-            return Base(match.group(1))
-
+    for event_type, _ in events:
+        if event_type == EventType.OUT:
+            match = re.fullmatch(r"\d+\((.)\)", description)
+            if match:
+                return Base(match.group(1))
     return None
 
 
-def _get_stolen_base(description: str, runner_event: RunnerEvent | None) -> Base | None:
-    if runner_event == RunnerEvent.STOLEN_BASE:
-        return Base(re.fullmatch(r".*SB([23H])", description).group(1))  # type: ignore
+def _get_stolen_base(description: str, events: list[tuple[EventType, re.Match]]) -> Base | None:
+    for event_type, _ in events:
+        if event_type == EventType.STOLEN_BASE:
+            return Base(re.fullmatch(r".*SB([23H])", description).group(1))  # type: ignore
 
     return None
