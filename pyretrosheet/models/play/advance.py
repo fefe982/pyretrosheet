@@ -1,4 +1,5 @@
 """Encapsulates Retrosheet advances as part of play data."""
+
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass

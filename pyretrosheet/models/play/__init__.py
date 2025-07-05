@@ -1,4 +1,5 @@
 """Encapsulates Retrosheet play data."""
+
 from dataclasses import dataclass
 
 from pyretrosheet.models.play.description import EventType
@@ -58,14 +59,17 @@ class Play:
 
     def is_walk(self) -> bool:
         """Determines if the play resulted in a walk."""
-        return self.event.description.event_type in [
-            EventType.WALK,
-            EventType.INTENTIONAL_WALK,
-        ]
+        return any(
+            _ in self.event.description.events
+            for _ in [
+                EventType.WALK,
+                EventType.INTENTIONAL_WALK,
+            ]
+        )
 
     def is_hit_by_pitch(self) -> bool:
         """Determines if the play resulted in the batter being hit by a pitch."""
-        return self.event.description.event_type == EventType.HIT_BY_PITCH
+        return EventType.HIT_BY_PITCH in self.event.description.events
 
     def is_sacrifice_fly(self) -> bool:
         """Determines if the play resulted in a sacrifice fly."""
@@ -73,20 +77,26 @@ class Play:
 
     def is_an_at_bat(self) -> bool:
         """Determines if the play counts as an at bat."""
-        is_batter_event_at_bat = self.event.description.event_type not in [
-            EventType.NO_PLAY,
-            EventType.CATCHER_INTERFERENCE,
-            EventType.ERROR_ON_FOUL_FLY_BALL,
-        ]
-        is_runner_event_at_bat = self.event.description.event_type not in [
-            EventType.WILD_PITCH,
-            EventType.CAUGHT_STEALING,
-            EventType.STOLEN_BASE,
-            EventType.OTHER_ADVANCE,
-            EventType.PASSED_BALL,
-            EventType.BALK,
-            EventType.PICKED_OFF,
-        ]
+        is_batter_event_at_bat = any(
+            _ in self.event.description.events
+            for _ in [
+                EventType.NO_PLAY,
+                EventType.CATCHER_INTERFERENCE,
+                EventType.ERROR_ON_FOUL_FLY_BALL,
+            ]
+        )
+        is_runner_event_at_bat = any(
+            _ in self.event.description.events
+            for _ in [
+                EventType.WILD_PITCH,
+                EventType.CAUGHT_STEALING,
+                EventType.STOLEN_BASE,
+                EventType.OTHER_ADVANCE,
+                EventType.PASSED_BALL,
+                EventType.BALK,
+                EventType.PICKED_OFF,
+            ]
+        )
         return all(
             [
                 is_batter_event_at_bat,
@@ -99,22 +109,26 @@ class Play:
 
     def is_single(self) -> bool:
         """Determines if the play resulted in a single."""
-        return self.event.description.event_type == EventType.SINGLE
+        return EventType.SINGLE in self.event.description.events
 
     def is_double(self) -> bool:
         """Determines if the play resulted in a double."""
-        return self.event.description.event_type == EventType.DOUBLE
+        return EventType.DOUBLE in self.event.description.events
 
     def is_triple(self) -> bool:
         """Determines if the play resulted in a triple."""
-        return self.event.description.event_type == EventType.TRIPLE
+        return EventType.TRIPLE in [self.event.description.events]
 
     def is_home_run(self) -> bool:
         """Determines if the play resulted in a home run."""
-        return self.event.description.event_type in [
-            EventType.HOME_RUN_INSIDE_PARK,
-            EventType.HOME_RUN_LEAVING_PARK,
-        ]
+        return any(
+            event
+            in [
+                EventType.HOME_RUN_INSIDE_PARK,
+                EventType.HOME_RUN_LEAVING_PARK,
+            ]
+            for event in self.event.description.events
+        )
 
     def is_hit(self) -> bool:
         """Determines if the play resulted in a hit."""

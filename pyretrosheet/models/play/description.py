@@ -36,7 +36,6 @@ class EventType(Enum):
     PICKED_OFF = auto()
     PICKED_OFF_CAUGHT_STEALING = auto()
     STOLEN_BASE = auto()
-    FILEDERS_CHOICE = auto()
 
 
 @dataclass
@@ -62,9 +61,10 @@ class Description:
     fielder_put_outs: dict[int, int]
     fielder_handlers: dict[int, int]
     fielder_errors: dict[int, int]
-    put_out_at_base: Base | None
-    stolen_base: Base | None
-    implied_advance: list[Base]
+    put_out_at_base: list[Base]
+    stolen_base: list[Base]
+    caught_stolen: list[Base]
+    implicit_advance: Base | None
     raw: str
 
     @classmethod
@@ -85,8 +85,9 @@ class Description:
             fielder_errors=_get_fielder_errors(description, events),
             put_out_at_base=_get_put_out_at_base(description, events),
             stolen_base=_get_stolen_base(description, events),
+            caught_stolen=_get_caught_stolen(description, events),
             raw=description,
-            implied_advance=[],
+            implicit_advance=_get_implicit_advance(description, events),
         )
 
 
@@ -112,15 +113,15 @@ def _get_event_type(description: str) -> list[tuple[EventType, re.Match]]:
         r"I(W)?": EventType.INTENTIONAL_WALK,
         r"NP": EventType.NO_PLAY,
         r"BK": EventType.BALK,
-        r"CS[23H]\(.*\)": EventType.CAUGHT_STEALING,
+        r"CS([23H])\(.*\)": EventType.CAUGHT_STEALING,
         r"DI": EventType.DEFENSIVE_INDIFFERENCE,
         r"OA": EventType.OTHER_ADVANCE,
         r"PB": EventType.PASSED_BALL,
         r"WP": EventType.WILD_PITCH,
         r"PO[123H]\(.*\)": EventType.PICKED_OFF,
-        r"POCS[123H]\(.*\)": EventType.PICKED_OFF_CAUGHT_STEALING,
-        r"SB[23H]": EventType.STOLEN_BASE,
-        r"FC": EventType.FILEDERS_CHOICE,
+        r"POCS([123H])\(.*\)": EventType.PICKED_OFF_CAUGHT_STEALING,
+        r"SB([23H])": EventType.STOLEN_BASE,
+        r"FC": EventType.FIELDERS_CHOICE,
     }
     descriptions = re.split(r"[+;]", description)
     events = []
@@ -303,24 +304,93 @@ def _get_fielder_errors(description: str, events: list[tuple[EventType, re.Match
     return dict(fielder_errors)
 
 
-def _get_put_out_at_base(description: str, events: list[tuple[EventType, re.Match]]) -> Base | None:
+def _get_put_out_at_base(description: str, events: list[tuple[EventType, re.Match]]) -> list[Base]:
     """Get the base of a put out if it's a non-conventional base put out at.
 
     Args:
         description: the description part of a play's event
         batter_event: the batting event, if it exists
     """
-    for event_type, _ in events:
-        if event_type == EventType.OUT:
-            match = re.fullmatch(r"\d+\((.)\)", description)
-            if match:
-                return Base(match.group(1))
-    return None
+    outs = []
+    for event_type, m in events:
+        if event_type in [EventType.OUT, EventType.DOUBLE_PLAY, EventType.TRIPLE_PLAY]:
+            for i in range(3):
+                try:
+                    b = m.group(f"b{i}")
+                except IndexError:
+                    continue
+                if b is not None:
+                    outs.append(Base(b))
+    return outs
 
 
-def _get_stolen_base(description: str, events: list[tuple[EventType, re.Match]]) -> Base | None:
-    for event_type, _ in events:
+def _get_stolen_base(description: str, events: list[tuple[EventType, re.Match]]) -> list[Base]:
+    stolen_base = []
+    for event_type, m in events:
         if event_type == EventType.STOLEN_BASE:
-            return Base(re.fullmatch(r".*SB([23H])", description).group(1))  # type: ignore
+            assert m.group(1) is not None
+            stolen_base.append(Base(m.group(1)))
+    return stolen_base
 
-    return None
+
+def _get_caught_stolen(description: str, events: list[tuple[EventType, re.Match]]) -> list[Base]:
+    caught_stealing = []
+    for event_type, m in events:
+        if event_type in [EventType.CAUGHT_STEALING, EventType.PICKED_OFF_CAUGHT_STEALING]:
+            assert m.group(1) is not None
+            caught_stealing.append(Base(m.group(1)))
+    return caught_stealing
+
+
+def _get_implicit_advance(description: str, events: list[tuple[EventType, re.Match]]) -> Base | None:
+    event_type, m = events[0]
+    match event_type:
+        case EventType.OUT:
+            if m.group("b0") is None or m.group("b0") == "B":
+                return None
+            else:
+                return Base.FIRST_BASE
+        case EventType.DOUBLE_PLAY:
+            if m.group("b0") == "B" or m.group("b1") is None or m.group("b1") == "B":
+                return None
+            else:
+                return Base.FIRST_BASE
+        case EventType.TRIPLE_PLAY:
+            if m.group("b0") == "B" or m.group("b1") == "B" or m.group("b2") is None or m.group("b2") == "B":
+                return None
+            else:
+                return Base.FIRST_BASE
+        case (
+            EventType.SINGLE
+            | EventType.ERROR
+            | EventType.FIELDERS_CHOICE
+            | EventType.CATCHER_INTERFERENCE
+            | EventType.HIT_BY_PITCH
+            | EventType.WALK
+            | EventType.INTENTIONAL_WALK
+        ):
+            return Base.FIRST_BASE
+        case EventType.DOUBLE | EventType.GROUND_RULE_DOUBLE:
+            return Base.SECOND_BASE
+        case EventType.TRIPLE:
+            return Base.THIRD_BASE
+        case EventType.HOME_RUN_INSIDE_PARK | EventType.HOME_RUN_LEAVING_PARK:
+            return Base.HOME
+        case (
+            EventType.ERROR_ON_FOUL_FLY_BALL
+            | EventType.NO_PLAY
+            | EventType.BALK
+            | EventType.CAUGHT_STEALING
+            | EventType.DEFENSIVE_INDIFFERENCE
+            | EventType.OTHER_ADVANCE
+            | EventType.PASSED_BALL
+            | EventType.WILD_PITCH
+            | EventType.PICKED_OFF
+            | EventType.PICKED_OFF_CAUGHT_STEALING
+            | EventType.STOLEN_BASE
+        ):
+            return Base.BATTER_AT_HOME
+        case EventType.STRIKEOUT:
+            return None
+        case _:
+            raise ValueError(f"Unexpected event type: {event_type}")
