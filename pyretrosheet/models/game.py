@@ -1,13 +1,16 @@
 """Encapsulates Retrosheet game data."""
+
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
+from pyretrosheet.models.base import Base
 from pyretrosheet.models.exceptions import ParseError
 from pyretrosheet.models.game_id import GameID
 from pyretrosheet.models.play import Play
 from pyretrosheet.models.player import Player
+from pyretrosheet.models.radj import RAdj
 
-ChronologicalEvent = Player | Play
+ChronologicalEvent = Player | Play | RAdj
 ChronologicalEvents = Sequence[ChronologicalEvent]
 
 
@@ -90,6 +93,8 @@ class Game:
 
                     case "data":
                         earned_runs[parts[2]] = int(parts[3])
+                    case "radj":
+                        chronological_events.append(RAdj(Base(parts[2])))
             except ParseError as e:
                 raise ParseError(e.looking_for_value, e.raw_value, line) from e
             except Exception as e:

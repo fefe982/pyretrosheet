@@ -37,6 +37,9 @@ class Event:
             pb = b.prev_base()
             if pb not in self.runner:
                 self.runner[pb] = None
+        for b in self.description.pick_off:
+            if b not in self.runner:
+                self.runner[b] = None
 
     @classmethod
     def from_play_event(cls, event: str) -> "Event":

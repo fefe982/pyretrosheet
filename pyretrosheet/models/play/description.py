@@ -64,6 +64,7 @@ class Description:
     put_out_at_base: list[Base]
     stolen_base: list[Base]
     caught_stolen: list[Base]
+    pick_off: list[Base]
     implicit_advance: Base | None
     raw: str
 
@@ -84,8 +85,9 @@ class Description:
             fielder_handlers=_get_fielder_handlers(fielding_handler_plays),
             fielder_errors=_get_fielder_errors(description, events),
             put_out_at_base=_get_put_out_at_base(description, events),
-            stolen_base=_get_stolen_base(description, events),
-            caught_stolen=_get_caught_stolen(description, events),
+            stolen_base=_get_base([EventType.STOLEN_BASE], events),
+            caught_stolen=_get_base([EventType.CAUGHT_STEALING, EventType.PICKED_OFF_CAUGHT_STEALING], events),
+            pick_off=_get_base([EventType.PICKED_OFF], events),
             raw=description,
             implicit_advance=_get_implicit_advance(description, events),
         )
@@ -118,7 +120,7 @@ def _get_event_type(description: str) -> list[tuple[EventType, re.Match]]:
         r"OA": EventType.OTHER_ADVANCE,
         r"PB": EventType.PASSED_BALL,
         r"WP": EventType.WILD_PITCH,
-        r"PO[123H]\(.*\)": EventType.PICKED_OFF,
+        r"PO([123H])\(.*\)": EventType.PICKED_OFF,
         r"POCS([123H])\(.*\)": EventType.PICKED_OFF_CAUGHT_STEALING,
         r"SB([23H])": EventType.STOLEN_BASE,
         r"FC": EventType.FIELDERS_CHOICE,
@@ -324,22 +326,13 @@ def _get_put_out_at_base(description: str, events: list[tuple[EventType, re.Matc
     return outs
 
 
-def _get_stolen_base(description: str, events: list[tuple[EventType, re.Match]]) -> list[Base]:
-    stolen_base = []
+def _get_base(event_types: list[EventType], events: list[tuple[EventType, re.Match]]) -> list[Base]:
+    base = []
     for event_type, m in events:
-        if event_type == EventType.STOLEN_BASE:
+        if event_type in event_types:
             assert m.group(1) is not None
-            stolen_base.append(Base(m.group(1)))
-    return stolen_base
-
-
-def _get_caught_stolen(description: str, events: list[tuple[EventType, re.Match]]) -> list[Base]:
-    caught_stealing = []
-    for event_type, m in events:
-        if event_type in [EventType.CAUGHT_STEALING, EventType.PICKED_OFF_CAUGHT_STEALING]:
-            assert m.group(1) is not None
-            caught_stealing.append(Base(m.group(1)))
-    return caught_stealing
+            base.append(Base(m.group(1)))
+    return base
 
 
 def _get_implicit_advance(description: str, events: list[tuple[EventType, re.Match]]) -> Base | None:

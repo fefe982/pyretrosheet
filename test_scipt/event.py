@@ -5,6 +5,7 @@ from pathlib import Path
 import pyretrosheet
 from pyretrosheet.models.play import Play
 from pyretrosheet.models.player import Player
+from pyretrosheet.models.radj import RAdj
 from pyretrosheet.models.team import TeamLocation
 
 players = {}
@@ -17,11 +18,22 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
     elif game.visiting_team_id != "NYA":
         continue
     last_inning = -1
-    last_team = TeamLocation.VISITING
+    last_team = TeamLocation.HOME
     base = []
     outs = 3
     for event in game.chronological_events:
-        if isinstance(event, Play):
+        if isinstance(event, RAdj):
+            assert outs == 3 or (outs == 0 and len(base) == 0)
+            if outs == 3:
+                outs = 0
+                if last_team == TeamLocation.HOME:
+                    last_inning += 1
+                    last_team = TeamLocation.VISITING
+                else:
+                    last_team = TeamLocation.HOME
+            base = [event.base]
+            print("radj", base)
+        elif isinstance(event, Play):
             if event.inning != last_inning or event.team_location != last_team:
                 base = []
                 assert outs == 3
