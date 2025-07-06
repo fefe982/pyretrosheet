@@ -63,8 +63,8 @@ class Description:
     fielder_errors: dict[int, int]
     put_out_at_base: list[Base]
     stolen_base: list[Base]
-    caught_stolen: list[Base]
-    pick_off: list[Base]
+    caught_stolen: tuple[list[Base], list[Base]]
+    pick_off: tuple[list[Base], list[Base]]
     implicit_advance: Base | None
     raw: str
 
@@ -85,7 +85,7 @@ class Description:
             fielder_handlers=_get_fielder_handlers(fielding_handler_plays),
             fielder_errors=_get_fielder_errors(description, events),
             put_out_at_base=_get_put_out_at_base(description, events),
-            stolen_base=_get_base([EventType.STOLEN_BASE], events),
+            stolen_base=_get_base([EventType.STOLEN_BASE], events)[0],
             caught_stolen=_get_base([EventType.CAUGHT_STEALING, EventType.PICKED_OFF_CAUGHT_STEALING], events),
             pick_off=_get_base([EventType.PICKED_OFF], events),
             raw=description,
@@ -115,13 +115,13 @@ def _get_event_type(description: str) -> list[tuple[EventType, re.Match]]:
         r"I(W)?": EventType.INTENTIONAL_WALK,
         r"NP": EventType.NO_PLAY,
         r"BK": EventType.BALK,
-        r"CS([23H])\(.*\)": EventType.CAUGHT_STEALING,
+        r"CS([23H])\((.*)\)": EventType.CAUGHT_STEALING,
         r"DI": EventType.DEFENSIVE_INDIFFERENCE,
         r"OA": EventType.OTHER_ADVANCE,
         r"PB": EventType.PASSED_BALL,
         r"WP": EventType.WILD_PITCH,
-        r"PO([123H])\(.*\)": EventType.PICKED_OFF,
-        r"POCS([123H])\(.*\)": EventType.PICKED_OFF_CAUGHT_STEALING,
+        r"PO([123H])\((.*)\)": EventType.PICKED_OFF,
+        r"POCS([123H])\((.*)\)": EventType.PICKED_OFF_CAUGHT_STEALING,
         r"SB([23H])": EventType.STOLEN_BASE,
         r"FC": EventType.FIELDERS_CHOICE,
     }
@@ -326,13 +326,25 @@ def _get_put_out_at_base(description: str, events: list[tuple[EventType, re.Matc
     return outs
 
 
-def _get_base(event_types: list[EventType], events: list[tuple[EventType, re.Match]]) -> list[Base]:
+def _get_base(event_types: list[EventType], events: list[tuple[EventType, re.Match]]) -> tuple[list[Base], list[Base]]:
     base = []
+    negated = []
     for event_type, m in events:
         if event_type in event_types:
             assert m.group(1) is not None
-            base.append(Base(m.group(1)))
-    return base
+            b = Base(m.group(1))
+            try:
+                play = m.group(2)
+            except IndexError:
+                play = None
+            if play is None:
+                play = ""
+            play = play.split("/")[0]
+            if "E" in play:
+                negated.append(b)
+            else:
+                base.append(b)
+    return base, negated
 
 
 def _get_implicit_advance(description: str, events: list[tuple[EventType, re.Match]]) -> Base | None:

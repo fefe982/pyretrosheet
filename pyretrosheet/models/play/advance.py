@@ -64,13 +64,13 @@ class Advance:
             advance: the advance part of a play's event
                 Examples include: 'B-1', '2-3', '1-2(WP)', '2-H(TUR)', '2-H(E4/TH)(UR)(NR)', '1X2', '1XH(862)'
         """
-        from_base, to_base = _get_bases(advance)
-        additional_info = _get_additional_info(advance)
-        is_out = _is_out(advance)
+        from_base, link, to_base, add_str = _get_bases(advance)
+        additional_info = _get_additional_info(add_str)
+        is_out = _is_out(link, additional_info)
         return cls(
             from_base=from_base,
             to_base=to_base,
-            additional_info=_get_additional_info(advance),
+            additional_info=additional_info,
             fielder_assists=_get_fielder_assists(additional_info),
             fielder_put_out=_get_fielder_put_out(additional_info, is_out),
             fielder_handlers=_get_fielder_handlers(additional_info, is_out),
@@ -87,48 +87,26 @@ class Advance:
         )
 
 
-def _get_bases(advance: str) -> tuple[Base, Base]:
+def _get_bases(advance: str) -> tuple[Base, str, Base, str]:
     """Get from and to bases from the advance.
 
     Args:
         advance: the advance description
     """
-    match = re.fullmatch(r"([B123H])[-X]([B123H]).*", advance)
+    match = re.fullmatch(r"([B123H])([-X])([B123H])(.*)", advance)
     if not match:
         raise ParseError("bases_from_advance", advance)
 
-    return Base(match.group(1)), Base(match.group(2))
+    return Base(match.group(1)), match.group(2), Base(match.group(3)), match.group(4)
 
 
-def _get_additional_info(advance: str) -> list[str]:
-    """Get additional info from an advance.
-
-    Retrosheet description:
-        Advances may include additional information in the
-        form of one or more parameters specified as a parenthesized strings
-        of characters. When more than one parameter is given on an advance
-        they are individually parenthesized.
-
-    Args:
-        advance: the advance description
-    """
-    return re.findall(r"\(([^)]+)\)", advance)
+def _get_additional_info(add_str: str) -> list[str]:
+    assert re.fullmatch(r"(\([^)]+\))*", add_str)
+    return re.findall(r"\(([^)]+)\)", add_str)
 
 
-def _is_out(advance: str) -> bool:
-    """Determine if the runner is out as a result of the advance.
-
-    If there is an error within an out, the out does not occur.
-
-    Retrosheet Spec:
-        The error indicator negates the out.
-
-    Args:
-        advance: the advance description
-    """
-    is_out_encoded = bool(re.fullmatch(r"([B123H])X([B123H]).*", advance))
-    has_error = bool(re.search(r"\(.*E.*\)", advance))
-    return is_out_encoded and not has_error
+def _is_out(link: str, additional_info: list[str]) -> bool:
+    return link == "X" and (len(additional_info) == 0 or "E" not in additional_info[0].split("/")[0])
 
 
 def _get_fielder_assists(additional_info: list[str]) -> list[int]:

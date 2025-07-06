@@ -33,13 +33,20 @@ class Event:
             pb = b.prev_base()
             if pb not in self.runner:
                 self.runner[pb] = b
-        for b in self.description.caught_stolen:
+        for b in self.description.caught_stolen[0]:
             pb = b.prev_base()
             if pb not in self.runner:
                 self.runner[pb] = None
-        for b in self.description.pick_off:
+        for b in self.description.caught_stolen[1]:
+            pb = b.prev_base()
+            if pb not in self.runner:
+                self.runner[pb] = b
+        for b in self.description.pick_off[0]:
             if b not in self.runner:
                 self.runner[b] = None
+        for b in self.description.pick_off[1]:
+            if b not in self.runner:
+                self.runner[b] = b
 
     @classmethod
     def from_play_event(cls, event: str) -> "Event":
