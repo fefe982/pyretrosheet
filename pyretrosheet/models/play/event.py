@@ -2,13 +2,30 @@
 
 import re
 from dataclasses import dataclass, field
+from enum import Enum, auto
 
 from pyretrosheet.models.base import Base
 from pyretrosheet.models.exceptions import ParseError
 from pyretrosheet.models.play.advance import Advance
-from pyretrosheet.models.play.description import Description
+from pyretrosheet.models.play.description import Description, EventType
 from pyretrosheet.models.play.ignored import trim_ignored_characters
-from pyretrosheet.models.play.modifier import Modifier
+from pyretrosheet.models.play.modifier import Modifier, ModifierType
+
+
+class Outcome(Enum):
+    SINGLE = auto()
+    DOUBLE = auto()
+    TRIPLE = auto()
+    HOME_RUN = auto()
+    STRIKE_OUT = auto()
+    OUT = auto()
+    WALK = auto()
+    HIT_BY_PITCH = auto()
+    ERROR = auto()
+    SACRIFICE_FLY = auto()
+    SACRIFICE_BUNT = auto()
+    INTERFERENCE = auto()
+    FIELDERS_CHOICE = auto()
 
 
 @dataclass
@@ -95,7 +112,7 @@ class Event:
     def get_final_stat(self, prev_state: list[Base]):
         out = 0
         base = []
-        bat_end = False
+        bat_end = None
         score = 0
         if Base.BATTER_AT_HOME in self.runner:
             bat_end = True
@@ -105,6 +122,42 @@ class Event:
                 out += 1
             else:
                 base.append(self.runner[Base.BATTER_AT_HOME])
+            modifiers = [_.type for _ in self.modifiers]
+            if EventType.SINGLE in self.description.events:
+                bat_end = Outcome.SINGLE
+            elif EventType.DOUBLE in self.description.events or EventType.GROUND_RULE_DOUBLE in self.description.events:
+                bat_end = Outcome.DOUBLE
+            elif EventType.TRIPLE in self.description.events:
+                bat_end = Outcome.TRIPLE
+            elif (
+                EventType.HOME_RUN_INSIDE_PARK in self.description.events
+                or EventType.HOME_RUN_LEAVING_PARK in self.description.events
+            ):
+                bat_end = Outcome.HOME_RUN
+            elif EventType.STRIKEOUT in self.description.events:
+                bat_end = Outcome.STRIKE_OUT
+            elif EventType.ERROR in self.description.events:
+                bat_end = Outcome.ERROR
+            elif EventType.HIT_BY_PITCH in self.description.events:
+                bat_end = Outcome.HIT_BY_PITCH
+            elif EventType.WALK in self.description.events or EventType.INTENTIONAL_WALK in self.description.events:
+                bat_end = Outcome.WALK
+            elif ModifierType.SACRIFICE_FLY in modifiers:
+                bat_end = Outcome.SACRIFICE_FLY
+            elif ModifierType.SACRIFICE_HIT_BUNT in modifiers:
+                bat_end = Outcome.SACRIFICE_BUNT
+            elif EventType.CATCHER_INTERFERENCE in self.description.events:
+                bat_end = Outcome.INTERFERENCE
+            elif (
+                EventType.OUT in self.description.events
+                or EventType.DOUBLE_PLAY in self.description.events
+                or EventType.TRIPLE_PLAY in self.description.events
+            ):
+                bat_end = Outcome.OUT
+            elif EventType.FIELDERS_CHOICE in self.description.events:
+                bat_end = Outcome.FIELDERS_CHOICE
+            else:
+                assert False, f"Unknown outcome: {self.raw}"
         for b in prev_state:
             if b in self.runner:
                 if self.runner[b] is None:

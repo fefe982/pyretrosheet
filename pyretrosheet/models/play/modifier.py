@@ -108,11 +108,10 @@ class ModifierType(Enum):
     UMPIRE_INTERFERENCE = auto()
     UMPIRE_REVIEW_OF_CALL_ON_THE_FIELD = auto()
     HIT_LOCATION = auto()
-    # Unsure what these modifiers encode, but they appear frequently enough to define
-    B = auto()
-    BF = auto()
-    BFDP = auto()
-    U = auto()
+    BUNT = auto()
+    BUNT_FOUL = auto()
+    BUNT_FLY_INTO_DOUBLE_PLAY = auto()
+    UNASSISTED = auto()
     S = auto()
     RR = auto()
     # These may be typos and the intention was to encode these as their capital letter
@@ -162,14 +161,6 @@ def _get_modifier_type(modifier: str) -> ModifierType:
     Args:
         modifier: a modifier part of a play's event
     """
-    # Handle odd case from play in 2004CHA.EVA: 'play,8,0,blakc001,20,BBX,8/!F'
-    if modifier == "!F":
-        return ModifierType.FLY
-
-    # Handle odd case from play in 2011TEX.EVA: 'play,8,0,swisn001,12,BFCX,5/P!5F'
-    if modifier == "P!5F":
-        return ModifierType.POP_FLY
-
     # (\d+.*)? matches hit location which is an optional amount of digits followed by an optional amount
     # of alphabetic characters
     # @TODO: move these to the enum - a tuple of regecies?
@@ -219,16 +210,16 @@ def _get_modifier_type(modifier: str) -> ModifierType:
         r"UREV(\d+.*)?": ModifierType.UMPIRE_REVIEW_OF_CALL_ON_THE_FIELD,
         r"\d+.*": ModifierType.HIT_LOCATION,
         # Not defined in Retrosheet, but appears frequently enough to define
-        r"B": ModifierType.B,
-        r"B\d+.*": ModifierType.B,
-        r"BF": ModifierType.BF,
-        r"BFDP": ModifierType.BFDP,
-        r"U": ModifierType.U,
-        r"U\d.*": ModifierType.U,
+        r"B": ModifierType.BUNT,
+        r"B\d+.*": ModifierType.BUNT,
+        r"BF": ModifierType.BUNT_FOUL,
+        r"BFDP": ModifierType.BUNT_FLY_INTO_DOUBLE_PLAY,
+        r"U": ModifierType.UNASSISTED,
+        r"U\d.*": ModifierType.UNASSISTED,
         r"S": ModifierType.S,
         r"RR.*": ModifierType.RR,
-        r"p": ModifierType.p,
-        r"l": ModifierType.l,
+        r"p": ModifierType.POP_FLY,
+        r"l": ModifierType.LINE_DRIVE,
     }
     for pattern, modifier_type in pattern_to_modifier_type.items():
         if re.fullmatch(pattern, modifier):

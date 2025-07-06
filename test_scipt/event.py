@@ -7,6 +7,7 @@ from pathlib import Path
 import pyretrosheet
 from pyretrosheet.models.base import Base
 from pyretrosheet.models.play import Play
+from pyretrosheet.models.play.event import Outcome
 from pyretrosheet.models.player import Player
 from pyretrosheet.models.radj import RAdj
 from pyretrosheet.models.team import TeamLocation
@@ -58,8 +59,28 @@ def get_base_num(base: list[Base]):
     return r
 
 
+@dataclasses.dataclass
+class BatterStat:
+    plate_appearances: int = 0
+    at_bat: int = 0
+    single: int = 0
+    double: int = 0
+    triple: int = 0
+    home_run: int = 0
+
+    @property
+    def hit(self):
+        return self.single + self.double + self.triple + self.home_run
+
+    @property
+    def avg(self):
+        return self.hit / self.at_bat if self.at_bat > 0 else 0
+
+
 win_cnt = defaultdict(int)
 total_cnt = defaultdict(int)
+batter_stat = defaultdict(BatterStat)
+batter_name = {}
 
 for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / ".data" / "events"):
     # team_location = TeamLocation.VISITING
@@ -87,12 +108,8 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
         if new_situation != situation:
             situation = new_situation
             situation_cnt[situation] += 1
-        if isinstance(event, RAdj):
-            assert outs == 0
-            assert len(base) == 0
-            base = [event.base]
-            situation_cnt[situation] -= 1
-            # print("radj", base)
+        if isinstance(event, Player):
+            batter_name[event.id] = event.name
         elif isinstance(event, Play):
             assert event.inning == inning, (event.raw, event.inning, inning)
             assert event.team_location == team, (event.raw, event.inning, event.team_location, inning, team)
@@ -100,6 +117,24 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
             # for adv in event.event.advances:
             #     print(" ", adv.from_base, " -> ", "out" if adv.is_out else adv.to_base)
             out, score, bat_end, base = event.event.get_final_stat(base)
+            if bat_end is not None:
+                batter_stat[event.batter_id].plate_appearances += 1
+                if bat_end not in [
+                    Outcome.WALK,
+                    Outcome.HIT_BY_PITCH,
+                    Outcome.SACRIFICE_BUNT,
+                    Outcome.SACRIFICE_FLY,
+                    Outcome.INTERFERENCE,
+                ]:
+                    batter_stat[event.batter_id].at_bat += 1
+                    if bat_end == Outcome.SINGLE:
+                        batter_stat[event.batter_id].single += 1
+                    elif bat_end == Outcome.DOUBLE:
+                        batter_stat[event.batter_id].double += 1
+                    elif bat_end == Outcome.TRIPLE:
+                        batter_stat[event.batter_id].triple += 1
+                    elif bat_end == Outcome.HOME_RUN:
+                        batter_stat[event.batter_id].home_run += 1
             outs += out
             # print(outs, out, score, bat_end, base)
             # print(event.event.description.put_out_at_base)
@@ -109,6 +144,12 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
                 gamescore[0] += score
             # inning = event.inning
             # team = event.team_location
+        elif isinstance(event, RAdj):
+            assert outs == 0
+            assert len(base) == 0
+            base = [event.base]
+            situation_cnt[situation] -= 1
+            # print("radj", base)
         # else:
         #     print(event)
     if gamescore[0] == gamescore[1]:
@@ -124,4 +165,9 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
             win_cnt[situation] += cnt
     # print(gamescore)
 # print(win)
-print(win_cnt)
+# print(win_cnt)
+
+for id, stat in batter_stat.items():
+    print(
+        f"{batter_name[id]}, {stat.plate_appearances}, {stat.at_bat}, {stat.single}, {stat.double}, {stat.triple}, {stat.home_run}, {stat.avg:.3f}"
+    )
