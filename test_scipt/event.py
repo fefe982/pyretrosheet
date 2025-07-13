@@ -12,6 +12,14 @@ from pyretrosheet.models.player import Player
 from pyretrosheet.models.radj import RAdj
 from pyretrosheet.models.team import TeamLocation
 
+# ruff: noqa: D101
+# ruff: noqa: D102
+# ruff: noqa: D103
+# ruff: noqa: D105
+# ruff: noqa: ERA001
+# ruff: noqa: PLR2004
+# ruff: noqa: T201
+
 players = {}
 positions = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
 order = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
@@ -26,7 +34,7 @@ class Situation:
     inning: int
     team: TeamLocation
 
-    def __init__(self, score: int, outs: int, base: list[Base], inning: int, team: TeamLocation):
+    def __init__(self, score: int, outs: int, base: list[tuple[Base, str]], inning: int, team: TeamLocation):
         self.score = min(max(score, -10), 10)
         self.outs = outs
         self.base = get_base_num(base)
@@ -47,14 +55,14 @@ class Situation:
         return hash((self.score, self.outs, self.base, self.inning, self.team))
 
 
-def get_base_num(base: list[Base]):
+def get_base_num(base: list[tuple[Base, str]]):
     r = 0
     for b in base:
-        if b == Base.FIRST_BASE:
+        if b[0] == Base.FIRST_BASE:
             r += 1
-        elif b == Base.SECOND_BASE:
+        elif b[0] == Base.SECOND_BASE:
             r += 2
-        elif b == Base.THIRD_BASE:
+        elif b[0] == Base.THIRD_BASE:
             r += 4
     return r
 
@@ -116,7 +124,7 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
             # print(event.raw)
             # for adv in event.event.advances:
             #     print(" ", adv.from_base, " -> ", "out" if adv.is_out else adv.to_base)
-            out, score, bat_end, base = event.event.get_final_stat(base)
+            out, score, bat_end, base = event.event.get_final_stat(base, event.batter_id)
             if bat_end is not None:
                 batter_stat[event.batter_id].plate_appearances += 1
                 if bat_end not in [
@@ -147,7 +155,7 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
         elif isinstance(event, RAdj):
             assert outs == 0
             assert len(base) == 0
-            base = [event.base]
+            base = [(event.base, event.runner_id)]
             situation_cnt[situation] -= 1
             # print("radj", base)
         # else:

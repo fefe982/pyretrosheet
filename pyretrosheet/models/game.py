@@ -94,7 +94,7 @@ class Game:
                     case "data":
                         earned_runs[parts[2]] = int(parts[3])
                     case "radj":
-                        chronological_events.append(RAdj(Base(parts[2])))
+                        chronological_events.append(RAdj(parts[1], Base(parts[2])))
             except ParseError as e:
                 raise ParseError(e.looking_for_value, e.raw_value, line) from e
             except Exception as e:
