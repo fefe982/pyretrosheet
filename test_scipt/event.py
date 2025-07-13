@@ -75,6 +75,8 @@ class BatterStat:
     double: int = 0
     triple: int = 0
     home_run: int = 0
+    stolen_base: int = 0
+    caught_stealing: int = 0
 
     @property
     def hit(self):
@@ -89,6 +91,7 @@ win_cnt = defaultdict(int)
 total_cnt = defaultdict(int)
 batter_stat = defaultdict(BatterStat)
 batter_name = {}
+score_cnt = defaultdict(lambda: defaultdict(int))
 
 for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / ".data" / "events"):
     # team_location = TeamLocation.VISITING
@@ -101,8 +104,8 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
     base = []
     outs = 3
     gamescore = [0, 0]
-    situation = Situation(0, 0, [], 0, TeamLocation.HOME)
-    situation_cnt = defaultdict(int)
+    # situation = Situation(0, 0, [], 0, TeamLocation.HOME)
+    # situation_cnt = defaultdict(dict)
     for event in game.chronological_events:
         if outs == 3:
             outs = 0
@@ -112,10 +115,10 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
                 team = TeamLocation.VISITING
             else:
                 team = TeamLocation.HOME
-        new_situation = Situation(gamescore[1] - gamescore[0], outs, base, inning, team)
-        if new_situation != situation:
-            situation = new_situation
-            situation_cnt[situation] += 1
+        # new_situation = Situation(gamescore[1] - gamescore[0], outs, base, inning, team)
+        # if new_situation != situation:
+        #     situation = new_situation
+        #     situation_cnt[situation] += 1
         if isinstance(event, Player):
             batter_name[event.id] = event.name
         elif isinstance(event, Play):
@@ -124,8 +127,11 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
             # print(event.raw)
             # for adv in event.event.advances:
             #     print(" ", adv.from_base, " -> ", "out" if adv.is_out else adv.to_base)
+            base_num = get_base_num(base)
+            base_save = base
             out, score, bat_end, base = event.event.get_final_stat(base, event.batter_id)
             if bat_end is not None:
+                score_cnt[(outs, base_num)][score] += 1
                 batter_stat[event.batter_id].plate_appearances += 1
                 if bat_end not in [
                     Outcome.WALK,
@@ -144,6 +150,19 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
                     elif bat_end == Outcome.HOME_RUN:
                         batter_stat[event.batter_id].home_run += 1
             outs += out
+            for b in event.event.description.stolen_base:
+                bp = b.prev_base()
+                for bs in base_save:
+                    if bs[0] == bp:
+                        batter_stat[bs[1]].stolen_base += 1
+                        break
+            for bb in event.event.description.caught_stolen:
+                for b in bb:
+                    bp = b.prev_base()
+                    for bs in base_save:
+                        if bs[0] == bp:
+                            batter_stat[bs[1]].caught_stealing += 1
+                            break
             # print(outs, out, score, bat_end, base)
             # print(event.event.description.put_out_at_base)
             if event.team_location == TeamLocation.HOME:
@@ -156,7 +175,7 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
             assert outs == 0
             assert len(base) == 0
             base = [(event.base, event.runner_id)]
-            situation_cnt[situation] -= 1
+            # situation_cnt[situation] -= 1
             # print("radj", base)
         # else:
         #     print(event)
@@ -167,15 +186,20 @@ for game in pyretrosheet.load_games(2024, Path(Path(__file__).parent) / ".." / "
         if game.home_team_id == "NYA":
             w = not w
         win[0 if w else 2] += 1
-    for situation, cnt in situation_cnt.items():
-        total_cnt[situation] += cnt
-        if gamescore[1] > gamescore[0]:
-            win_cnt[situation] += cnt
+    # for situation, cnt in situation_cnt.items():
+    #     total_cnt[situation] += cnt
+    #     if gamescore[1] > gamescore[0]:
+    #         win_cnt[situation] += cnt
     # print(gamescore)
 # print(win)
 # print(win_cnt)
 
 for id, stat in batter_stat.items():
     print(
-        f"{batter_name[id]}, {stat.plate_appearances}, {stat.at_bat}, {stat.single}, {stat.double}, {stat.triple}, {stat.home_run}, {stat.avg:.3f}"
+        f"{batter_name[id]}, {stat.plate_appearances}, {stat.at_bat}, {stat.single}, {stat.double}, {stat.triple}, {stat.home_run}, {stat.avg:.3f}, {stat.stolen_base}, {stat.caught_stealing}"
+    )
+for (outs, base), d in score_cnt.items():
+    total = d[0] + d[1] + d[2] + d[3] + d[4]
+    print(
+        f"{outs}, {base}, {d[0] / total * 100:6.3f}, {d[1] / total * 100:6.3f}, {d[2] / total * 100:6.3f}, {d[3] / total * 100:6.3f}, {d[4] / total * 100:6.3f}"
     )
